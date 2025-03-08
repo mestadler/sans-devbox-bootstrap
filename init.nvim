@@ -1,28 +1,39 @@
-# Basic settings
-# ~/.config/nvim/init.nvim
+" ~/.config/nvim/init.vim
+" Neovim configuration file
+" Last updated: 2025-03-08
 
-set number              " Show line numbers
-set relativenumber      " Show relative line numbers
-set tabstop=4           " Set tab width to 4 spaces
-set shiftwidth=4        " Set indent width to 4 spaces
-set expandtab           " Use spaces instead of tabs
-set smarttab            " Insert tabs based on shiftwidth
-set autoindent          " Enable auto indentation
-set smartindent         " Enable smart indentation
-set ignorecase          " Ignore case when searching
-set smartcase           " Override ignorecase if search contains uppercase letters
-set incsearch           " Highlight search matches as you type
-set hlsearch            " Highlight all search matches
-set cursorline          " Highlight the current line
-set ruler               " Show cursor position in the status line
-set laststatus=2        " Always show the status line
-set showcmd             " Show incomplete commands
-set wildmenu            " Enable command-line completion
-set showmatch           " Highlight matching brackets
-set mouse=a             " Enable mouse support
-syntax on               " Turn on syntax
+" Source .vimrc for compatibility with Vim
+set runtimepath^=~/.vim runtimepath+=~/.vim/after
+let &packpath = &runtimepath
+source ~/.vimrc
 
-" Color scheme
-colorscheme gruvbox
-set background=dark     " Use the dark variant of gruvbox
+" Neovim-specific settings
+" These settings will only apply to Neovim, not to Vim
 
+" Python provider settings (if you use Python plugins)
+" Uncomment and set these if you need specific Python executables
+" let g:python_host_prog = '/usr/bin/python2'
+" let g:python3_host_prog = '/usr/bin/python3'
+
+" Plugin management
+" If you want to use a plugin manager like vim-plug, add it here
+" Example:
+" call plug#begin('~/.local/share/nvim/plugged')
+" Plug 'neovim/nvim-lspconfig'
+" Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
+" call plug#end()
+
+" Enhanced terminal options
+" More convenient terminal usage in Neovim
+augroup NeovimTerminal
+  autocmd!
+  " Start terminal in insert mode
+  autocmd TermOpen * startinsert
+  " Don't show line numbers in terminal
+  autocmd TermOpen * setlocal nonumber norelativenumber
+  " Easier navigation
+  autocmd TermOpen * nnoremap <buffer> <C-c> i<C-c>
+augroup END
+
+" Additional keybindings for LSP and other Neovim-specific features
+" would go here if you add those plugins
