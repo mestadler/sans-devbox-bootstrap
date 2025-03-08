@@ -177,6 +177,26 @@ for config in "${SPECIAL_CONFIG_ARRAY[@]}"; do
     backup_and_copy_to_dir "$source_file" "$target_file"
 done
 
+# Special handling for Neovim configuration
+if $DRY_RUN; then
+    echo "[Dry run] Would create symlinks for Neovim configuration"
+else
+    # Create Neovim config directory if it doesn't exist
+    mkdir -p "$HOME/.config/nvim"
+    
+    # If init.nvim was deployed, make sure init.vim also exists as a symlink
+    if [ -f "$HOME/.config/nvim/init.nvim" ] && [ ! -f "$HOME/.config/nvim/init.vim" ]; then
+        echo "Creating symlink from init.nvim to init.vim for Neovim compatibility"
+        ln -sf "$HOME/.config/nvim/init.nvim" "$HOME/.config/nvim/init.vim"
+    fi
+    
+    # If init.vim was deployed, make sure init.nvim also exists as a symlink
+    if [ -f "$HOME/.config/nvim/init.vim" ] && [ ! -f "$HOME/.config/nvim/init.nvim" ]; then
+        echo "Creating symlink from init.vim to init.nvim for Neovim compatibility"
+        ln -sf "$HOME/.config/nvim/init.vim" "$HOME/.config/nvim/init.nvim"
+    fi
+fi
+
 # Source the .bashrc file to apply changes if not in dry run mode
 if [[ -e "$HOME/.bashrc" ]] && [ "$DRY_RUN" = false ]; then
     echo "Sourcing $HOME/.bashrc to apply changes"
