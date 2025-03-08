@@ -1,14 +1,13 @@
 #!/bin/bash
 
-# user-config-deploy.sh
+# devbox-user-init.sh
 #
 # Description:
-#   Reminder this script deploys user-specific configurations, including dotfiles and
-#   special configuration files. It's called by devbox-init.sh after the devbox-init is
-#   done.  You can run this script on its own like below.
+#   This script deploys user-specific configurations, including dotfiles and
+#   special configuration files. It should be run after devbox-init.sh.
 #
 # Usage:
-#   ./user-config-deploy.sh <path_to_env_file> [--dry-run]
+#   ./devbox-user-init.sh <path_to_env_file> [--dry-run]
 #
 # Arguments:
 #   <path_to_env_file>: Path to the environment file containing configuration variables
@@ -22,18 +21,24 @@
 # /mes - https://github.com/mestadler/sans-devbox-bootstrap
 
 set -e
-SCRIPT_VERSION="1.4"
-LAST_UPDATED="2024-09-04"
+SCRIPT_VERSION="2.0"
+LAST_UPDATED="2025-03-08"
 
 # Function to display usage information
 usage() {
     echo "Usage: $0 <path_to_env_file> [--dry-run]"
-    echo "  <path_to_env_file>: Path to the local environment variables file"
+    echo "  <path_to_env_file>: Path to the environment variables file"
     echo "  --dry-run: Optional flag to run the script without making changes"
     exit 1
 }
 
-# Check if env file path is provided
+# Check if running as root (should NOT be run as root)
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Error: This script should NOT be run as root."
+    echo "Please run as your regular user."
+    exit 1
+fi
+
 # Check if env file path is provided
 if [ "$#" -lt 1 ]; then
     echo "Error: No environment file specified."
@@ -55,14 +60,22 @@ fi
 # Source the environment file
 source "$ENV_FILE"
 
-# Add a check to print out some key variables
+# Check for required variables
+for var in REPO_URL DOTFILES SPECIAL_CONFIGS; do
+    if [ -z "${!var}" ]; then
+        echo "Error: $var is not set in $ENV_FILE"
+        exit 1
+    fi
+done
+
+# Print key variables for verification
 echo "Checking environment variables:"
 echo "ENV_FILE: $ENV_FILE"
 echo "REPO_URL: $REPO_URL"
 echo "DOTFILES: $DOTFILES"
 echo "SPECIAL_CONFIGS: $SPECIAL_CONFIGS"
 
-
+# Check for dry run flag
 DRY_RUN=false
 if [[ "$1" == "--dry-run" ]]; then
     DRY_RUN=true
@@ -70,9 +83,9 @@ if [[ "$1" == "--dry-run" ]]; then
 fi
 
 # Logging setup
-LOG_FILE="$HOME/user_config_deploy.log"
+LOG_FILE="$HOME/devbox_user_init.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
-echo "Starting user-config-deploy.sh version $SCRIPT_VERSION (Last updated: $LAST_UPDATED)"
+echo "Starting devbox-user-init.sh version $SCRIPT_VERSION (Last updated: $LAST_UPDATED)"
 echo "Deployment started at $(date)"
 
 # Function to backup and copy files
@@ -100,15 +113,51 @@ backup_and_copy_to_dir() {
     $DRY_RUN || cp "$source_file" "$target_file"
 }
 
+# Check for git command
+if ! command -v git &> /dev/null; then
+    echo "Error: git command not found. Please install git."
+    exit 1
+fi
+
+# Create temporary directory for cloning
+TEMP_DIR="$HOME/config_temp"
+if [ -d "$TEMP_DIR" ]; then
+    echo "Cleaning up existing temporary directory"
+    $DRY_RUN || rm -rf "$TEMP_DIR"
+fi
+
 # Clone the repository
 echo "Cloning configuration repository from $REPO_URL"
-$DRY_RUN || git clone "$REPO_URL" "$HOME/config_temp"
-cd "$HOME/config_temp"
+$DRY_RUN || git clone "$REPO_URL" "$TEMP_DIR" || { 
+    echo "Error: Failed to clone repository from $REPO_URL"
+    exit 1
+}
+
+# Change to the cloned repository directory
+$DRY_RUN || cd "$TEMP_DIR" || {
+    echo "Error: Failed to change to directory $TEMP_DIR"
+    exit 1
+}
+
+# If dry run, just change to the current directory for testing
+if $DRY_RUN; then
+    cd "$(pwd)"
+else
+    # Verify we're in the right directory
+    if [ ! -d "$(pwd)/.git" ]; then
+        echo "Error: Not in a git repository directory. Clone may have failed."
+        exit 1
+    fi
+fi
 
 # Deploy dotfiles
 echo "Deploying dotfiles..."
 IFS=' ' read -ra DOTFILE_ARRAY <<< "$DOTFILES"
 for file in "${DOTFILE_ARRAY[@]}"; do
+    if [ ! -f "$file" ] && [ "$DRY_RUN" = false ]; then
+        echo "Warning: Dotfile $file not found in repository"
+        continue
+    fi
     backup_and_copy "$file"
 done
 
@@ -119,18 +168,26 @@ for config in "${SPECIAL_CONFIG_ARRAY[@]}"; do
     IFS=':' read -ra CONFIG_PARTS <<< "$config"
     source_file="${CONFIG_PARTS[0]}"
     target_file="${CONFIG_PARTS[1]}"
+    
+    if [ ! -f "$source_file" ] && [ "$DRY_RUN" = false ]; then
+        echo "Warning: Source file $source_file not found in repository"
+        continue
+    fi
+    
     backup_and_copy_to_dir "$source_file" "$target_file"
 done
 
-# Source the .bashrc file to apply changes
-if [[ -e "$HOME/.bashrc" ]]; then
+# Source the .bashrc file to apply changes if not in dry run mode
+if [[ -e "$HOME/.bashrc" ]] && [ "$DRY_RUN" = false ]; then
     echo "Sourcing $HOME/.bashrc to apply changes"
-    $DRY_RUN || source "$HOME/.bashrc"
+    source "$HOME/.bashrc" || echo "Warning: Failed to source $HOME/.bashrc"
 fi
 
 # Clean up
 echo "Cleaning up temporary files"
-$DRY_RUN || rm -rf "$HOME/config_temp"
+$DRY_RUN || rm -rf "$TEMP_DIR"
 
-echo "User configuration deployment complete."
-echo "Deployment finished at $(date)"
+echo "User initialization complete at $(date)"
+if [ "$DRY_RUN" = false ]; then
+    echo "You may need to restart your shell or log out and back in for all changes to take effect."
+fi
