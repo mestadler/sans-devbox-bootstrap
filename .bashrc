@@ -167,7 +167,9 @@ fi
 
 # --- Additional environment settings ---
 # Ensure paths and environment settings are properly configured
-. "$HOME/.cargo/env"
+if [ -f "$HOME/.cargo/env" ]; then
+    . "$HOME/.cargo/env"
+fi
 export PATH="$PATH:$HOME/.local/bin"
 
 # Securely source other private or custom shell configurations
@@ -181,8 +183,10 @@ if [[ "$TERM" == "xterm-kitty" ]]; then
     source <(kitty + complete setup bash)
 fi
 
-# Initialize Starship prompt
-eval "$(starship init bash)"
+# Initialize Starship prompt if installed
+if command -v starship &> /dev/null; then
+    eval "$(starship init bash)"
+fi
 
 # Function to list all aliases
 list_aliases() {
