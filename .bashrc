@@ -4,8 +4,9 @@
 [ -z "$PS1" ] && return
 
 # --- Security ---
-# Auto-logout after 100 minutes of inactivity (customize this value as needed)
-export TMOUT=6000
+# Auto-logout after inactivity (customize this value as needed)
+# Use environment variable if set, otherwise use default
+export TMOUT=${TMOUT:-6000}
 
 # --- Tokens ---
 # Replace this with a prompt or secure method to load API keys
@@ -19,10 +20,10 @@ elif [ -z "$OPENAI_GPT_API_KEY" ]; then
 fi
 
 # --- Editor settings ---
-# Set Neovim as the default editor
-alias vi='nvim'
-export EDITOR='nvim'
-export VISUAL='nvim'
+# Set default editor, use environment variables if set
+export EDITOR=${EDITOR:-'nvim'}
+export VISUAL=${VISUAL:-'nvim'}
+alias vi=$EDITOR
 
 # --- History settings ---
 # Enable history appending instead of overwriting when closing the shell
@@ -123,11 +124,11 @@ done
 # --- Build environment settings ---
 # ccache configuration
 export CCACHE_DIR="$HOME/.ccache"
-export CC="ccache gcc"
-export CXX="ccache g++"
+export CC=${CC:-"ccache gcc"}
+export CXX=${CXX:-"ccache g++"}
 
-# Optional: Set the maximum cache size
-export CCACHE_MAXSIZE="20G"
+# Set the maximum cache size from environment variable or default
+export CCACHE_MAXSIZE=${CCACHE_MAXSIZE:-"20G"}
 
 # Function to configure ccache on shell start
 configure_ccache() {
@@ -137,9 +138,10 @@ configure_ccache() {
 # Call the function
 configure_ccache
 
-# Optimization flags for building software
-export CFLAGS="-O3 -march=native -mtune=native -pipe -mfpmath=sse -funroll-loops"
-export CXXFLAGS="${CFLAGS}"
+# Optimization flags for building software - use environment variables if set
+export CFLAGS=${CFLAGS:-"-O3 -march=native -mtune=native -pipe -mfpmath=sse -funroll-loops"}
+export CXXFLAGS=${CXXFLAGS:-$CFLAGS}
+export MAKEFLAGS=${MAKEFLAGS:-"-j$(nproc)"}
 
 # Source the developer variables, functions, and aliases
 if [ -f ~/.bashrc-developer ]; then
@@ -147,6 +149,11 @@ if [ -f ~/.bashrc-developer ]; then
 fi
 
 # --- PATH settings ---
+# Add custom path if defined in environment
+if [ ! -z "$CUSTOM_PATH" ] && [ -d "$CUSTOM_PATH" ]; then
+    PATH="$CUSTOM_PATH:$PATH"
+fi
+
 # Prepend the user's private bin directory to the PATH if it exists
 if [ -d "$HOME/bin" ]; then
     PATH="$HOME/bin:$PATH"
@@ -172,9 +179,31 @@ if [ -f "$HOME/.cargo/env" ]; then
 fi
 export PATH="$PATH:$HOME/.local/bin"
 
+# Add project and script homes to PATH if they exist
+if [ ! -z "$PROJECT_HOME" ] && [ -d "$PROJECT_HOME" ]; then
+    export PROJECT_HOME
+fi
+
+if [ ! -z "$SCRIPT_HOME" ] && [ -d "$SCRIPT_HOME" ]; then
+    export SCRIPT_HOME
+    PATH="$SCRIPT_HOME:$PATH"
+fi
+
 # Securely source other private or custom shell configurations
 if [ -f "$HOME/.shelloracle.bash" ]; then
     source "$HOME/.shelloracle.bash"
+fi
+
+# --- Docker configuration ---
+# Set docker host if specified in environment
+if [ ! -z "$DOCKER_HOST" ]; then
+    export DOCKER_HOST
+fi
+
+# --- Kubernetes configuration ---
+# Set KUBECONFIG if specified in environment
+if [ ! -z "$KUBECONFIG" ]; then
+    export KUBECONFIG
 fi
 
 # --- Kitty terminal integration ---
