@@ -1,5 +1,5 @@
 " $VIMRUNTIME refers to the versioned system directory where Vim stores its
-" 11apr23
+" Last updated: 2023-04-11
 
 runtime! debian.vim
 
@@ -37,8 +37,7 @@ vnoremap <C-y> "+y
 nnoremap <C-p> "+gP
 vnoremap <C-p> "+gP
 
-" highlight the current same work
-
+" Highlight all instances of the word under cursor with F4
 nnoremap <F4> :match StatusLineTerm /<C-R><C-W>/<CR>
 
 " Source a global configuration file if available
