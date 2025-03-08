@@ -3,34 +3,42 @@
 # devbox-init.sh
 # 
 # Description:
-#   This script initializes a dev box with necessary configurations,
-#   packages, and user settings.
+#   This script initializes a dev box with necessary system configurations,
+#   packages, and system settings. Should be run as root.
 #
 # Usage:
-#   ./devbox-init.sh
+#   sudo ./devbox-init.sh [path_to_env_file]
+#
+# Arguments:
+#   [path_to_env_file]: Optional path to the environment file (default: .env)
 #
 # Note:
-#   - This script should be run as a regular user with sudo privileges.
-#   - The script expects a .env file in the same directory.
+#   - This script should be run as root.
+#   - After completion, run user-config-deploy.sh separately as a regular user.
 #
 # /mes - https://github.com/mestadler/sans-devbox-bootstrap
 
-
-#!/bin/bash
-
 set -e
 
-SCRIPT_VERSION="2.4"
-LAST_UPDATED="2024-09-04"
-
+SCRIPT_VERSION="3.0"
+LAST_UPDATED="2025-03-08"
 
 # Ensure /usr/bin is in the PATH
 export PATH="/usr/bin:$PATH"
 
-ENV_FILE=".env"
+# Check if running as root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: This script must be run as root."
+    echo "Usage: sudo $0 [path_to_env_file]"
+    exit 1
+fi
+
+# Handle environment file
+ENV_FILE="${1:-.env}"
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "Error: $ENV_FILE file does not exist in the current directory."
+    echo "Error: $ENV_FILE file does not exist."
+    echo "Please create it from .env_example before continuing."
     exit 1
 fi
 
@@ -48,84 +56,93 @@ echo "PATH after loading .env: $PATH"
 
 export DEBIAN_FRONTEND=noninteractive
 
-run_as_root() {
-    sudo -E "$@" || { echo "Command failed: $*"; exit 1; }
-}
+# Set up logging
+LOG_FILE="./devbox_setup.log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "Starting devbox-init.sh version $SCRIPT_VERSION (Last updated: $LAST_UPDATED)"
+echo "Setup started at $(date)"
 
 # Test if common commands are accessible
 for cmd in tee ls cat grep; do
     if command -v $cmd > /dev/null 2>&1; then
         echo "$cmd is available at $(which $cmd)"
     else
-        echo "$cmd is not found in PATH"
+        echo "Error: $cmd is not found in PATH"
+        exit 1
     fi
 done
 
-LOG_FILE="./devbox_setup.log"
-tee "$LOG_FILE" <<EOF
-Starting devbox-init.sh version $SCRIPT_VERSION (Last updated: $LAST_UPDATED)
-Setup started at $(date)
-EOF
-
-# root should not be used.
-if [ "$(id -u)" -eq 0 ]; then
-    echo "Please do not run this script directly as root."
-    exit 1
-fi
-
 echo "Configuring locale and timezone..."
-run_as_root locale-gen "$LANG"
-run_as_root update-locale LANG="$LANG" LC_ALL="$LC_ALL"
-run_as_root timedatectl set-timezone "$TZ"
+locale-gen "$LANG" || { echo "Failed to generate locale"; exit 1; }
+update-locale LANG="$LANG" LC_ALL="$LC_ALL" || { echo "Failed to update locale"; exit 1; }
+timedatectl set-timezone "$TZ" || { echo "Failed to set timezone"; exit 1; }
 
 echo "Configuring network settings..."
-run_as_root hostnamectl set-hostname ""
-run_as_root sed -i '/127.0.1.1/d' /etc/hosts
-echo "127.0.0.1 localhost" | run_as_root tee -a /etc/hosts
-echo "::1 localhost ip6-localhost ip6-loopback" | run_as_root tee -a /etc/hosts
+hostnamectl set-hostname "" || { echo "Warning: Failed to set hostname"; }
+sed -i '/127.0.1.1/d' /etc/hosts
+echo "127.0.0.1 localhost" | tee -a /etc/hosts
+echo "::1 localhost ip6-localhost ip6-loopback" | tee -a /etc/hosts
 
 echo "Updating package lists..."
-run_as_root apt update
+apt update || { echo "Failed to update package lists"; exit 1; }
 
 echo "Installing packages..."
 # shellcheck disable=SC2086
-run_as_root apt install -y $PACKAGES
+apt install -y $PACKAGES || { echo "Failed to install packages"; exit 1; }
 
 echo "Performing full system upgrade..."
-run_as_root apt dist-upgrade -y
+apt dist-upgrade -y || { echo "Failed to perform system upgrade"; exit 1; }
 
 echo "Configuring automatic security updates..."
-run_as_root apt install -y unattended-upgrades
-run_as_root dpkg-reconfigure -plow unattended-upgrades
+apt install -y unattended-upgrades || { echo "Failed to install unattended-upgrades"; exit 1; }
+dpkg-reconfigure -plow unattended-upgrades || { echo "Failed to configure unattended-upgrades"; exit 1; }
 
 echo "Setting up Starship globally"
-curl -fsSL https://starship.rs/install.sh | run_as_root sh -s -- -y
+curl -fsSL https://starship.rs/install.sh | sh -s -- -y || { echo "Failed to install Starship"; exit 1; }
 
 echo "Setting up Kubernetes..."
-curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBERNETES_VERSION}/deb/Release.key" | run_as_root gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBERNETES_VERSION}/deb/ /" | run_as_root tee /etc/apt/sources.list.d/kubernetes.list
+if command -v gpg > /dev/null 2>&1; then
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBERNETES_VERSION}/deb/Release.key" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBERNETES_VERSION}/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 
-run_as_root apt update
-run_as_root apt install -y kubelet kubeadm kubectl
-run_as_root apt-mark hold kubelet kubeadm kubectl
-run_as_root systemctl enable --now kubelet
-
-echo "Cloning configuration repository..."
-git clone "$REPO_URL" ./homecfg || { echo "Failed to clone repository"; exit 1; }
-cd ./homecfg || { echo "Failed to change directory to ./homecfg"; exit 1; }
-
-echo "Running user-config-deploy.sh..."
-if [ -f "user-config-deploy.sh" ]; then
-    bash user-config-deploy.sh "../$ENV_FILE"
+    apt update
+    apt install -y kubelet kubeadm kubectl
+    apt-mark hold kubelet kubeadm kubectl
+    systemctl enable --now kubelet
 else
-    echo "Error: user-config-deploy.sh not found in ./homecfg"
-    exit 1
+    echo "Warning: gpg command not found. Skipping Kubernetes setup."
 fi
 
-cd ..
+# Create a temporary user configuration script that can be run later
+USER_PROMPT_SCRIPT="/tmp/run_user_config.sh"
+cat > "$USER_PROMPT_SCRIPT" << 'EOF'
+#!/bin/bash
+cat << "PROMPT"
 
-echo "Sourcing .bashrc..."
-source ~/.bashrc
+====================================================================
+                SYSTEM CONFIGURATION COMPLETE
+====================================================================
 
-echo "System setup complete. Please reboot your system."
-echo "Setup finished at $(date)"
+To complete the user-level configuration, please run:
+
+    ./devbox-user-init.sh .env
+
+as your regular user (not root).
+====================================================================
+
+PROMPT
+EOF
+
+chmod +x "$USER_PROMPT_SCRIPT"
+
+# Cleanup
+echo "Cleaning up..."
+apt autoremove -y
+apt clean
+
+echo "System setup complete at $(date)"
+echo "Please reboot your system when convenient."
+
+# Display the prompt for user configuration
+bash "$USER_PROMPT_SCRIPT"
