@@ -100,28 +100,6 @@ dpkg-reconfigure -plow unattended-upgrades || { echo "Failed to configure unatte
 echo "Setting up Starship globally"
 curl -fsSL https://starship.rs/install.sh | sh -s -- -y || { echo "Failed to install Starship"; exit 1; }
 
-echo "Setting up Kubernetes..."
-if command -v gpg > /dev/null 2>&1; then
-    mkdir -p /etc/apt/keyrings
-    # Check if the file exists and remove it to avoid prompts
-    if [ -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg ]; then
-        rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    fi
-    
-    # Updated URL format for Kubernetes repository
-    echo "Downloading Kubernetes repository key..."
-    curl -fsSL "https://dl.k8s.io/apt/doc/apt-key.gpg" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    
-    # Create the Kubernetes apt repository file
-    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
-
-    apt update
-    apt install -y kubelet=${KUBERNETES_VERSION} kubeadm=${KUBERNETES_VERSION} kubectl=${KUBERNETES_VERSION}
-    apt-mark hold kubelet kubeadm kubectl
-    systemctl enable --now kubelet
-else
-    echo "Warning: gpg command not found. Skipping Kubernetes setup."
-fi
 
 # Create a temporary user configuration script that can be run later
 USER_PROMPT_SCRIPT="/tmp/run_user_config.sh"
