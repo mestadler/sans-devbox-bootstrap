@@ -1,70 +1,79 @@
 # DevBox Setup
 
-DevBox Setup is a collection of scripts and configs to set up a dev box after installing Debian. It includes scripts for system configuration, package installation, and deployment of user-specific settings. Shared as it may be useful for others (and I need it to be a public repo).
+DevBox Setup is a collection of scripts and configuration files to quickly set up a development environment on Debian-based systems. It automates the installation of essential packages, system configuration, and user-specific settings to get you up and running quickly.
 
 ## Version
 
-- Current Version: 1.1
-- Last Updated: 2024-09-04
+- Current Version: 2.0
+- Last Updated: 2025-03-09
 
-## Repository Contents
+## Features
 
-- `devbox-init.sh`: Main script for system setup and package installation.
-- `user-config-deploy.sh`: Script for deploying user-specific configurations and dotfiles.
-- `.env.example`: Template for environment variables used by both scripts.
+- **Two-Phase Setup**: Separates system setup from user configuration
+- **Customizable**: Fully configurable through environment variables
+- **Comprehensive**: Installs development tools, programming languages, utilities, and more
+- **Kubernetes Ready**: Sets up Kubernetes automatically
+- **User Environment**: Configures shell, editor, git, and other developer tools
+- **Multiple Installation Methods**: Choose from one-line installers or manual setup
 
-## Prerequisites
+## Quick Start
 
-- A Debian-based Linux distribution (e.g., Ubuntu)
-- `sudo` access
-- `git` installed
-- `curl` installed (for remote execution)
+### Option 1: Automatic Installation (Recommended for New Users)
 
-## Getting Started
+Run the following command to start the interactive installation process:
 
-### Local Execution
+```bash
+bash -c "$(curl -sSL https://raw.githubusercontent.com/mestadler/sans-devbox-bootstrap/main/install.sh)"
+```
+
+This will:
+1. Download the necessary scripts
+2. Ask for your configuration preferences
+3. Create a customized environment file
+4. Run the system setup (requires sudo)
+5. Run the user configuration
+
+### Option 2: Installation with Existing .env File
+
+If you already have a configured `.env` file, use:
+
+```bash
+bash -c "$(curl -sSL https://raw.githubusercontent.com/mestadler/sans-devbox-bootstrap/main/install-local-env.sh)" _ /path/to/your/.env
+```
+
+### Option 3: Manual Installation
 
 1. Clone this repository:
-   ```
+   ```bash
    git clone https://github.com/mestadler/sans-devbox-bootstrap.git
    cd sans-devbox-bootstrap
    ```
 
-2. Create your environment variables file:
-   ```
-   cp .env.example .env
+2. Create your environment file:
+   ```bash
+   cp .env_example .env
    ```
 
 3. Edit `.env` with your specific details:
-   ```
-   vi .env
-   ```
-
-4. Make the scripts executable:
-   ```
-   chmod +x devbox-init.sh user-config-deploy.sh
+   ```bash
+   nano .env
    ```
 
-5. Run the main setup script:
+4. Run the system setup script:
+   ```bash
+   sudo ./devbox-init.sh .env
    ```
-   ./devbox-init.sh .env
+
+5. Run the user configuration script:
+   ```bash
+   ./devbox-user-init.sh .env
    ```
 
-### Remote Execution
-
-To run the setup directly using curl:
-
-```bash
-curl -sS https://raw.githubusercontent.com/mestadler/sans-devbox-bootstrap/main/devbox-init.sh | bash -s -- .env
-```
-
-Note: Ensure you have your `.env` file prepared before running this command.
-
-## Script Details
+## Understanding the Scripts
 
 ### devbox-init.sh
 
-This script performs the following tasks:
+This script performs system-level setup and must be run as root:
 
 - Configures system locale and timezone
 - Sets up network settings
@@ -72,48 +81,82 @@ This script performs the following tasks:
 - Performs a full system upgrade
 - Configures automatic security updates
 - Sets up Kubernetes
-- Calls `user-config-deploy.sh` to set up user-specific configurations
 
-Usage:
-```
-./devbox-init.sh .env
-```
+### devbox-user-init.sh
 
-### user-config-deploy.sh
+This script handles user-specific configurations and must be run as a regular user:
 
-This script handles user-specific configurations:
-
-- Deploys specified dotfiles
-- Handles special configuration files
+- Clones your configuration repository
+- Deploys dotfiles (.bashrc, .vimrc, etc.)
+- Sets up special configuration files
+- Configures development tools
 - Provides a dry-run option for testing
 
-Usage:
+## Configuration
+
+The `.env` file contains all necessary configuration settings. Key sections include:
+
+### System Configuration
+```bash
+LANG="en_GB.UTF-8"
+LC_ALL="en_GB.UTF-8"
+TZ="Europe/London"
+KUBERNETES_VERSION="1.32.2-00"
+PACKAGES="apt-transport-https apt-utils [...]"
 ```
-./user-config-deploy.sh .env [--dry-run]
+
+### User Configuration
+```bash
+GITHUB_USERNAME="your-github-username"
+DEBFULLNAME="Your Full Name"
+DEBEMAIL="your-email@example.com"
+REPO_URL="https://github.com/username/devbox-setup.git"
+DOTFILES=".bashrc .bashrc-developer .gitconfig .vimrc .sgptrc"
 ```
 
-## Environment Variables
-
-The `.env` file (created from `.env.example`) contains all necessary configuration settings. Key sections include:
-
-- System configuration (locale, timezone)
-- User information (GitHub username, email)
-- API keys and tokens
-- Tool-specific configurations
-- Path settings
-- Package list for installation
-- Dotfiles to be managed
-
-Ensure all placeholder values in this file are replaced with your actual data before running the scripts.
+### API Keys and Application Settings
+```bash
+GITHUB_TOKEN="your-github-token"
+OPENAI_GPT_API_KEY="your-openai-api-key"
+DEFAULT_MODEL="gpt-4o-2024-05-13"
+```
 
 ## Customization
 
-- Modify the `PACKAGES` variable in `.env` to customize installed packages.
-- Adjust the `DOTFILES` and `SPECIAL_CONFIGS` variables to manage your specific configuration files.
+### Package Selection
+
+Modify the `PACKAGES` variable in `.env` to customize what software gets installed.
+
+### Repository Configuration
+
+By default, user configuration files are cloned from your specified repository. Update the `REPO_URL` in your `.env` file to use your own repository.
+
+### Dotfiles
+
+The `DOTFILES` variable defines which configuration files are managed by the script. Add or remove files as needed.
+
+## Advanced Usage
+
+### Dry Run
+
+To test user configuration without making changes:
+
+```bash
+./devbox-user-init.sh .env --dry-run
+```
+
+### Individual Dotfiles
+
+You can selectively update dotfiles by modifying the `DOTFILES` variable in your `.env` file.
 
 ## Security Note
 
-The `.env` file may contain sensitive information. Keep it secure and do not share it publicly. Ensure `.env` is added to your `.gitignore` file to prevent accidental commits.
+The `.env` file contains sensitive information such as API keys and tokens. Keep it secure and do not share it publicly.
+
+## Supported Environments
+
+- Debian-based distributions (Debian, Ubuntu, etc.)
+- Tested on Ubuntu 22.04 LTS and Debian 11
 
 ## Contributing
 
@@ -125,4 +168,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- Devs that have shared their dot files and configs, thank you.
+- Thanks to all devs who have shared their dotfiles and configurations
+- Special appreciation to the open-source community for the tools and packages included
